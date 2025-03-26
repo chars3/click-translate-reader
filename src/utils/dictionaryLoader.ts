@@ -1,6 +1,6 @@
 
 // A utility to load and manage the English-Portuguese dictionary
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 // Type definition for the dictionary
 export type Dictionary = Record<string, string>;

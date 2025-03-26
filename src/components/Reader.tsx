@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { toast } from '@/components/ui/sonner';
+import { toast } from "sonner";
 import { motion } from 'framer-motion';
 import { loadDictionary, getTranslation, cleanWord, type Dictionary } from '@/utils/dictionaryLoader';
 import WordTooltip from './WordTooltip';
