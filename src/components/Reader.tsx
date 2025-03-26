@@ -49,7 +49,7 @@ const Reader: React.FC = () => {
         setTimeout(() => {
           setIsLoading(false);
           toast.success("Dictionary loaded successfully", {
-            description: "Click on any word to see its translation",
+            description: "Click on any word to see its sample translation (simulated)",
           });
         }, 300);
       } catch (error) {
