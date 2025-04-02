@@ -1,6 +1,7 @@
 
 // A utility to load and manage the English-Portuguese dictionary
 import { toast } from "sonner";
+import translate from "translate";
 
 // Type definition for the dictionary
 export type Dictionary = Record<string, string>;
@@ -25,7 +26,7 @@ export async function loadDictionary(): Promise<Dictionary> {
     }
     
     // If no cache or expired, fetch from source
-    // Using a different, working dictionary source
+    // Using a dictionary of common English words
     const response = await fetch('https://raw.githubusercontent.com/matthewreagan/WebstersEnglishDictionary/master/dictionary_compact.json');
     
     if (!response.ok) {
@@ -34,30 +35,32 @@ export async function loadDictionary(): Promise<Dictionary> {
     
     const rawData = await response.json();
     
-    // This dictionary has a different format, so we need to transform it
-    // The source has a format where keys are English words and values are definitions
-    // For our translation app, we'll use the definitions as mock Portuguese "translations"
-    const transformedData: Dictionary = {};
+    // Extract a subset of common words to avoid processing the entire dictionary
+    const commonWords: Dictionary = {};
+    let count = 0;
     
-    Object.entries(rawData).forEach(([word, definition]) => {
-      // Take just the first 10-30 characters of the definition as a "translation"
-      const fakeTranslation = typeof definition === 'string' 
-        ? definition.substring(0, Math.min(definition.length, Math.floor(Math.random() * 20) + 10)) + '...'
-        : 'Tradução simulada';
-      
-      transformedData[word.toLowerCase()] = fakeTranslation;
-    });
+    // Get first 1000 words
+    for (const word in rawData) {
+      if (count >= 1000) break;
+      if (word.length > 2 && word.length < 10) {
+        commonWords[word.toLowerCase()] = '';
+        count++;
+      }
+    }
+    
+    // Configure the translation service
+    translate.engine = "google"; // Default to Google as it doesn't require a key
     
     // Save to cache with timestamp
     localStorage.setItem(
       CACHE_KEY, 
       JSON.stringify({
         timestamp: Date.now(),
-        data: transformedData
+        data: commonWords
       })
     );
     
-    return transformedData;
+    return commonWords;
   } catch (error) {
     console.error('Error loading dictionary:', error);
     toast.error("Could not load the dictionary. Some features might not work offline.");
@@ -72,7 +75,19 @@ export function cleanWord(word: string): string {
   return word.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '').toLowerCase();
 }
 
-// Get translation for a word
+// Translate a word using the translate package
+export async function translateWord(word: string): Promise<string> {
+  try {
+    const cleaned = cleanWord(word);
+    const translation = await translate(cleaned, { to: 'pt' });
+    return translation || "Translation not found";
+  } catch (error) {
+    console.error('Translation error:', error);
+    return "Translation service unavailable";
+  }
+}
+
+// Get translation for a word (used for cached translations)
 export function getTranslation(word: string, dictionary: Dictionary): string {
   const cleaned = cleanWord(word);
   return dictionary[cleaned] || "Translation not found";

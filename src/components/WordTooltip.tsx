@@ -6,6 +6,7 @@ interface WordTooltipProps {
   word: string;
   translation: string;
   position: { x: number; y: number };
+  isLoading?: boolean;
   onClose: () => void;
 }
 
@@ -13,6 +14,7 @@ const WordTooltip: React.FC<WordTooltipProps> = ({
   word, 
   translation, 
   position, 
+  isLoading = false,
   onClose 
 }) => {
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -112,7 +114,12 @@ const WordTooltip: React.FC<WordTooltipProps> = ({
           </div>
           
           <div className="font-medium">
-            {translation === "Translation not found" ? (
+            {isLoading ? (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
+                <span className="text-muted-foreground">Translating...</span>
+              </div>
+            ) : translation === "Translation not found" ? (
               <span className="text-muted-foreground italic">
                 Translation not available
               </span>

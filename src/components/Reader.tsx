@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { toast } from "sonner";
 import { motion } from 'framer-motion';
-import { loadDictionary, getTranslation, cleanWord, type Dictionary } from '@/utils/dictionaryLoader';
+import { loadDictionary, translateWord, cleanWord, type Dictionary } from '@/utils/dictionaryLoader';
 import WordTooltip from './WordTooltip';
 import LoadingScreen from './LoadingScreen';
 import sampleText from '@/assets/sample';
@@ -18,6 +18,7 @@ const Reader: React.FC = () => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [selectedWord, setSelectedWord] = useState("");
   const [translation, setTranslation] = useState("");
+  const [isTranslating, setIsTranslating] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<WordPosition>({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -49,7 +50,7 @@ const Reader: React.FC = () => {
         setTimeout(() => {
           setIsLoading(false);
           toast.success("Dictionary loaded successfully", {
-            description: "Click on any word to see its sample translation (simulated)",
+            description: "Click on any word to see its translation to Portuguese",
           });
         }, 300);
       } catch (error) {
@@ -95,7 +96,7 @@ const Reader: React.FC = () => {
   }, [sampleText, selectedWord]);
 
   // Handle word click to show translation
-  const handleWordClick = (
+  const handleWordClick = async (
     event: React.MouseEvent<HTMLSpanElement>, 
     word: string
   ) => {
@@ -116,12 +117,25 @@ const Reader: React.FC = () => {
       y: rect.bottom
     };
 
-    // Get translation and update state
-    const translatedWord = getTranslation(word, dictionary);
+    // Set word and position immediately to show the tooltip
     setSelectedWord(cleanedWord);
-    setTranslation(translatedWord);
     setTooltipPosition(position);
     setShowTooltip(true);
+    
+    // Show loading state in the tooltip
+    setIsTranslating(true);
+    setTranslation("Translating...");
+    
+    try {
+      // Get real-time translation
+      const translatedWord = await translateWord(word);
+      setTranslation(translatedWord);
+    } catch (error) {
+      console.error("Translation error:", error);
+      setTranslation("Translation failed. Please try again.");
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   // Close tooltip
@@ -169,6 +183,7 @@ const Reader: React.FC = () => {
           word={selectedWord} 
           translation={translation}
           position={tooltipPosition}
+          isLoading={isTranslating}
           onClose={closeTooltip}
         />
       )}
