@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight, Settings } from "lucide-react";
-import { translateWord, isTranslating as isTranslatingWord } from '@/utils/dictionaryLoader';
+import { translateWord } from '@/utils/dictionaryLoader';
 import WordTooltip from './WordTooltip';
 import LoadingScreen from './LoadingScreen';
 import type { BookInfo } from '@/types/book';
@@ -41,31 +40,10 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<WordPosition>({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
-  const [epubModule, setEpubModule] = useState<any>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   
-  // Load the EPUB.js module first
+  // Load the book from IndexedDB
   useEffect(() => {
-    const loadEpubModule = async () => {
-      try {
-        console.log("Importing EPUB.js");
-        const module = await import('epubjs');
-        console.log("EPUB.js imported successfully:", module);
-        setEpubModule(module.default);
-      } catch (error) {
-        console.error('Error importing EPUB.js:', error);
-        toast.error('Failed to load EPUB reader module');
-        onClose();
-      }
-    };
-    
-    loadEpubModule();
-  }, [onClose]);
-  
-  // Load the book from IndexedDB once we have the EPUB module
-  useEffect(() => {
-    if (!epubModule) return;
-    
     const loadBook = async () => {
       try {
         // Simulate loading progress
@@ -96,13 +74,19 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
               setBookData(bookData);
               
               try {
+                // Import EPUB.js dynamically
+                console.log("Importing EPUB.js");
+                const epubModule = await import('epubjs');
+                console.log("EPUB.js imported successfully:", epubModule);
+                
                 // Create a blob URL from the file
                 console.log("Creating blob from file", bookData.file);
                 const bookBlob = new Blob([bookData.file], { type: 'application/epub+zip' });
                 const bookUrl = URL.createObjectURL(bookBlob);
                 
                 console.log("Creating EPUB book with URL:", bookUrl);
-                const epubBook = epubModule(bookUrl);
+                // Use the default export from the module
+                const epubBook = new epubModule.default(bookUrl);
                 console.log("EPUB book created:", epubBook);
                 setBook(epubBook);
                 
@@ -149,7 +133,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
     };
     
     loadBook();
-  }, [epubModule, bookId, onClose]);
+  }, [bookId, onClose]);
   
   // Initialize rendition once book is loaded
   useEffect(() => {
