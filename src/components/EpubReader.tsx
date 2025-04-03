@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight, Settings } from "lucide-react";
-import { translateWord, isTranslating as isTranslatingWord, Dictionary } from '@/utils/dictionaryLoader';
+import { translateWord, isTranslating as isTranslatingWord } from '@/utils/dictionaryLoader';
 import WordTooltip from './WordTooltip';
 import LoadingScreen from './LoadingScreen';
 import type { BookInfo } from '@/types/book';
@@ -41,10 +41,31 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<WordPosition>({ x: 0, y: 0 });
   const [showTooltip, setShowTooltip] = useState(false);
+  const [epubModule, setEpubModule] = useState<any>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   
-  // Load the book from IndexedDB
+  // Load the EPUB.js module first
   useEffect(() => {
+    const loadEpubModule = async () => {
+      try {
+        console.log("Importing EPUB.js");
+        const module = await import('epubjs');
+        console.log("EPUB.js imported successfully:", module);
+        setEpubModule(module.default);
+      } catch (error) {
+        console.error('Error importing EPUB.js:', error);
+        toast.error('Failed to load EPUB reader module');
+        onClose();
+      }
+    };
+    
+    loadEpubModule();
+  }, [onClose]);
+  
+  // Load the book from IndexedDB once we have the EPUB module
+  useEffect(() => {
+    if (!epubModule) return;
+    
     const loadBook = async () => {
       try {
         // Simulate loading progress
@@ -75,20 +96,13 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
               setBookData(bookData);
               
               try {
-                console.log("Importing EPUB.js");
-                // Dynamically import the EPUB.js library
-                const epubModule = await import('epubjs');
-                console.log("EPUB.js imported:", epubModule);
-                const ePub = epubModule.default;
-                
                 // Create a blob URL from the file
                 console.log("Creating blob from file", bookData.file);
                 const bookBlob = new Blob([bookData.file], { type: 'application/epub+zip' });
                 const bookUrl = URL.createObjectURL(bookBlob);
                 
-                // Create the book
                 console.log("Creating EPUB book with URL:", bookUrl);
-                const epubBook = ePub(bookUrl);
+                const epubBook = epubModule(bookUrl);
                 console.log("EPUB book created:", epubBook);
                 setBook(epubBook);
                 
@@ -100,8 +114,8 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
                   setIsLoading(false);
                 }, 300);
               } catch (err) {
-                console.error('Error loading EPUB.js or creating book:', err);
-                toast.error('Failed to load book reader');
+                console.error('Error creating book:', err);
+                toast.error('Failed to load book file');
                 clearInterval(loadingInterval);
                 onClose();
               }
@@ -135,12 +149,12 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
     };
     
     loadBook();
-  }, [bookId, onClose]);
+  }, [epubModule, bookId, onClose]);
   
   // Initialize rendition once book is loaded
   useEffect(() => {
     if (!book || !viewerRef.current || isLoading) {
-      console.log("Not ready to initialize renderer:", { book, viewerRef: !!viewerRef.current, isLoading });
+      console.log("Not ready to initialize renderer:", { book: !!book, viewerRef: !!viewerRef.current, isLoading });
       return;
     }
     
@@ -152,7 +166,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
         const bookRendition = book.renderTo(viewerRef.current, {
           width: '100%',
           height: '100%',
-          spread: 'auto',
+          spread: 'none',
           flow: 'paginated'
         });
         
@@ -161,57 +175,73 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
         
         // Load saved position or start from beginning
         try {
+          console.log("Attempting to display content");
           const savedCfi = localStorage.getItem(`book-position-${bookId}`);
           console.log("Saved CFI:", savedCfi);
+          
           if (savedCfi) {
             await bookRendition.display(savedCfi);
+            console.log("Book displayed at saved position");
           } else {
             await bookRendition.display();
+            console.log("Book displayed at beginning");
           }
-          console.log("Book displayed successfully");
         } catch (e) {
-          console.error('Error displaying saved position:', e);
+          console.error('Error displaying book:', e);
           try {
+            console.log("Attempting to display at default position");
+            // Try to display at the beginning if saved position fails
             await bookRendition.display();
-            console.log("Book displayed with default position");
           } catch (err) {
-            console.error("Failed to display book with default position:", err);
+            console.error("Failed to display book:", err);
             toast.error("Failed to render book");
           }
         }
         
         // Add event listeners for word selection
         bookRendition.on('selected', (cfiRange: string, contents: any) => {
-          console.log("Text selected:", cfiRange);
-          const selection = contents.window.getSelection();
-          const selectedText = selection.toString().trim();
-          
-          if (selectedText && selectedText.length > 0) {
-            console.log("Selected text:", selectedText);
-            handleWordSelection(selectedText, selection);
+          try {
+            console.log("Text selected:", cfiRange);
+            const selection = contents.window.getSelection();
+            const selectedText = selection.toString().trim();
+            
+            if (selectedText && selectedText.length > 0) {
+              console.log("Selected text:", selectedText);
+              handleWordSelection(selectedText, selection);
+            }
+          } catch (error) {
+            console.error("Error handling selection:", error);
           }
         });
         
         // Update progress when changing pages
         bookRendition.on('relocated', (location: any) => {
-          console.log("Page relocated:", location);
-          if (book.locations && book.locations.percentageFromCfi) {
-            const progress = book.locations.percentageFromCfi(location.start.cfi);
-            const progressPercent = Math.floor(progress * 100);
-            console.log("Reading progress:", progressPercent);
-            
-            // Save position
-            localStorage.setItem(`book-position-${bookId}`, location.start.cfi);
-            
-            // Update progress in IndexedDB
-            updateReadingProgress(progressPercent);
+          try {
+            console.log("Page relocated:", location);
+            if (book.locations && typeof book.locations.percentageFromCfi === 'function') {
+              const progress = book.locations.percentageFromCfi(location.start.cfi);
+              const progressPercent = Math.floor(progress * 100);
+              console.log("Reading progress:", progressPercent);
+              
+              // Save position
+              localStorage.setItem(`book-position-${bookId}`, location.start.cfi);
+              
+              // Update progress in IndexedDB
+              updateReadingProgress(progressPercent);
+            }
+          } catch (error) {
+            console.error("Error handling relocation:", error);
           }
         });
         
         // Generate locations for better progress calculation
-        if (book.locations && !book.locations.length()) {
-          console.log("Generating locations for progress tracking");
-          book.locations.generate();
+        try {
+          if (book.locations && typeof book.locations.generate === 'function' && !book.locations.length()) {
+            console.log("Generating locations for progress tracking");
+            book.locations.generate();
+          }
+        } catch (error) {
+          console.error("Error generating locations:", error);
         }
       } catch (error) {
         console.error('Error initializing renderer:', error);
@@ -225,7 +255,11 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
     return () => {
       if (book) {
         console.log("Cleaning up book instance");
-        book.destroy();
+        try {
+          book.destroy();
+        } catch (error) {
+          console.error("Error destroying book:", error);
+        }
       }
     };
   }, [book, isLoading, bookId]);
@@ -300,16 +334,32 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
     }
   };
   
-  // Navigation functions
+  // Navigation functions with safety checks
   const goToPreviousPage = () => {
-    if (rendition) {
-      rendition.prev();
+    if (rendition && typeof rendition.prev === 'function') {
+      console.log("Going to previous page");
+      try {
+        rendition.prev();
+      } catch (error) {
+        console.error("Error navigating to previous page:", error);
+        toast.error("Failed to navigate to previous page");
+      }
+    } else {
+      console.warn("Navigation not available yet");
     }
   };
   
   const goToNextPage = () => {
-    if (rendition) {
-      rendition.next();
+    if (rendition && typeof rendition.next === 'function') {
+      console.log("Going to next page");
+      try {
+        rendition.next();
+      } catch (error) {
+        console.error("Error navigating to next page:", error);
+        toast.error("Failed to navigate to next page");
+      }
+    } else {
+      console.warn("Navigation not available yet");
     }
   };
   
@@ -321,17 +371,23 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!rendition) return;
+      if (!rendition || typeof rendition.prev !== 'function' || typeof rendition.next !== 'function') return;
       
-      switch (e.key) {
-        case 'ArrowLeft':
-          rendition.prev();
-          break;
-        case 'ArrowRight':
-          rendition.next();
-          break;
-        default:
-          break;
+      try {
+        switch (e.key) {
+          case 'ArrowLeft':
+            console.log("Left arrow pressed, going to previous page");
+            rendition.prev();
+            break;
+          case 'ArrowRight':
+            console.log("Right arrow pressed, going to next page");
+            rendition.next();
+            break;
+          default:
+            break;
+        }
+      } catch (error) {
+        console.error("Error handling keyboard navigation:", error);
       }
     };
     
@@ -347,7 +403,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
   }
   
   return (
-    <div className="min-h-screen bg-reader-background">
+    <div className="min-h-screen bg-background">
       <style>{epubStyles}</style>
       
       {/* Header */}
@@ -367,7 +423,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
       
       {/* EPUB Viewer */}
       <div className="container py-6 max-w-3xl mx-auto">
-        <div ref={viewerRef} className="epub-container shadow-lg rounded-md"></div>
+        <div ref={viewerRef} className="epub-container shadow-lg rounded-md bg-white"></div>
         
         {/* Navigation Controls */}
         <div className="flex justify-between mt-6">
