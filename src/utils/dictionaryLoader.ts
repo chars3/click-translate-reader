@@ -1,8 +1,10 @@
-
 import translate from 'translate';
 
+// Define the Dictionary type
+export type Dictionary = Record<string, string>;
+
 // Dictionary for common words, expand as needed
-const commonWordsDictionary: Record<string, string> = {
+const commonWordsDictionary: Dictionary = {
   "the": "o/a",
   "to": "para",
   "and": "e",
@@ -201,9 +203,16 @@ const commonWordsDictionary: Record<string, string> = {
   "father": "pai"
 };
 
+// Function to clean a word (remove punctuation, etc.)
+export const cleanWord = (word: string): string => {
+  return word.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+};
+
 // Initialize the translation service
 try {
+  // @ts-ignore - the translate library typings don't include these properties
   translate.engine = 'google';
+  // @ts-ignore
   translate.key = ''; // No key needed for free usage
 } catch (error) {
   console.error('Error initializing translation service:', error);
@@ -211,12 +220,17 @@ try {
 
 let translating = false;
 
+// Load dictionary (simplified for now, just returns the common words)
+export const loadDictionary = async (): Promise<Dictionary> => {
+  return Promise.resolve(commonWordsDictionary);
+};
+
 // Function to get translation for a word
-export const translateWord = async (word: string): Promise<{ translation: string; isLoading: boolean }> => {
+export const translateWord = async (word: string): Promise<string> => {
   // Check if the word is in our common dictionary first
   const lowerWord = word.toLowerCase();
   if (commonWordsDictionary[lowerWord]) {
-    return { translation: commonWordsDictionary[lowerWord], isLoading: false };
+    return commonWordsDictionary[lowerWord];
   }
   
   // Try to get a translation from Google Translate
@@ -225,11 +239,11 @@ export const translateWord = async (word: string): Promise<{ translation: string
     const options = { from: 'en', to: 'pt' };
     const translation = await translate(word, options);
     translating = false;
-    return { translation, isLoading: false };
+    return translation;
   } catch (error) {
     console.error('Translation error:', error);
     translating = false;
-    return { translation: "Translation not available", isLoading: false };
+    return "Translation not available";
   }
 };
 
