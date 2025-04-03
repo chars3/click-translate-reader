@@ -1,95 +1,237 @@
 
-// A utility to load and manage the English-Portuguese dictionary
-import { toast } from "sonner";
-import translate from "translate";
+import translate from 'translate';
 
-// Type definition for the dictionary
-export type Dictionary = Record<string, string>;
+// Dictionary for common words, expand as needed
+const commonWordsDictionary: Record<string, string> = {
+  "the": "o/a",
+  "to": "para",
+  "and": "e",
+  "a": "um/uma",
+  "in": "em",
+  "is": "é",
+  "it": "isto",
+  "you": "você",
+  "that": "aquele/aquela",
+  "he": "ele",
+  "was": "era/foi",
+  "for": "para",
+  "on": "em/sobre",
+  "are": "são/estão",
+  "with": "com",
+  "as": "como",
+  "I": "eu",
+  "his": "dele",
+  "they": "eles/elas",
+  "be": "ser/estar",
+  "at": "em/a",
+  "one": "um",
+  "have": "ter",
+  "this": "isto/este",
+  "from": "de",
+  "by": "por",
+  "hot": "quente",
+  "word": "palavra",
+  "but": "mas",
+  "what": "o que",
+  "some": "alguns",
+  "can": "poder",
+  "out": "fora",
+  "other": "outro",
+  "were": "eram/estavam",
+  "all": "todos",
+  "there": "lá",
+  "when": "quando",
+  "up": "para cima",
+  "use": "usar",
+  "your": "seu/sua",
+  "how": "como",
+  "said": "disse",
+  "an": "um/uma",
+  "each": "cada",
+  "she": "ela",
+  "which": "qual",
+  "do": "fazer",
+  "their": "deles/delas",
+  "time": "tempo",
+  "if": "se",
+  "will": "irá",
+  "way": "caminho",
+  "about": "sobre",
+  "many": "muitos",
+  "then": "então",
+  "them": "eles/elas",
+  "write": "escrever",
+  "would": "iria",
+  "like": "como/gostar",
+  "so": "então/tão",
+  "these": "estes/estas",
+  "her": "dela",
+  "long": "longo",
+  "make": "fazer",
+  "thing": "coisa",
+  "see": "ver",
+  "him": "ele",
+  "two": "dois",
+  "has": "tem",
+  "look": "olhar",
+  "more": "mais",
+  "day": "dia",
+  "could": "poderia",
+  "go": "ir",
+  "come": "vir",
+  "did": "fez",
+  "number": "número",
+  "sound": "som",
+  "no": "não",
+  "most": "maioria",
+  "people": "pessoas",
+  "my": "meu/minha",
+  "over": "sobre",
+  "know": "saber",
+  "water": "água",
+  "than": "do que",
+  "call": "chamar",
+  "first": "primeiro",
+  "who": "quem",
+  "may": "pode",
+  "down": "para baixo",
+  "side": "lado",
+  "been": "sido",
+  "now": "agora",
+  "find": "encontrar",
+  "any": "qualquer",
+  "new": "novo",
+  "work": "trabalho",
+  "part": "parte",
+  "take": "pegar",
+  "get": "obter",
+  "place": "lugar",
+  "made": "feito",
+  "live": "viver",
+  "where": "onde",
+  "after": "depois",
+  "back": "voltar",
+  "little": "pouco",
+  "only": "apenas",
+  "round": "redondo",
+  "man": "homem",
+  "year": "ano",
+  "came": "veio",
+  "show": "mostrar",
+  "every": "cada",
+  "good": "bom",
+  "me": "me/mim",
+  "give": "dar",
+  "our": "nosso",
+  "under": "sob",
+  "name": "nome",
+  "very": "muito",
+  "through": "através",
+  "just": "apenas",
+  "form": "forma",
+  "sentence": "frase",
+  "great": "grande",
+  "think": "pensar",
+  "say": "dizer",
+  "help": "ajuda",
+  "low": "baixo",
+  "line": "linha",
+  "differ": "diferir",
+  "turn": "virar",
+  "cause": "causa",
+  "much": "muito",
+  "mean": "significar",
+  "before": "antes",
+  "move": "mover",
+  "right": "direito",
+  "boy": "menino",
+  "old": "velho",
+  "too": "também",
+  "same": "mesmo",
+  "tell": "contar",
+  "does": "faz",
+  "set": "conjunto",
+  "three": "três",
+  "want": "querer",
+  "air": "ar",
+  "well": "bem",
+  "also": "também",
+  "play": "jogar",
+  "small": "pequeno",
+  "end": "fim",
+  "put": "colocar",
+  "home": "casa",
+  "read": "ler",
+  "hand": "mão",
+  "port": "porto",
+  "large": "grande",
+  "spell": "soletrar",
+  "add": "adicionar",
+  "even": "mesmo",
+  "land": "terra",
+  "here": "aqui",
+  "must": "deve",
+  "big": "grande",
+  "high": "alto",
+  "such": "tal",
+  "follow": "seguir",
+  "act": "agir",
+  "why": "por que",
+  "ask": "perguntar",
+  "men": "homens",
+  "change": "mudar",
+  "went": "foi",
+  "light": "luz",
+  "kind": "tipo",
+  "off": "desligado",
+  "need": "precisar",
+  "house": "casa",
+  "picture": "foto",
+  "try": "tentar",
+  "us": "nós",
+  "again": "novamente",
+  "animal": "animal",
+  "point": "ponto",
+  "mother": "mãe",
+  "world": "mundo",
+  "near": "perto",
+  "build": "construir",
+  "self": "auto",
+  "earth": "terra",
+  "father": "pai"
+};
 
-// Cache the dictionary in localStorage
-const CACHE_KEY = 'offline-dictionary';
-const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+// Initialize the translation service
+try {
+  translate.engine = 'google';
+  translate.key = ''; // No key needed for free usage
+} catch (error) {
+  console.error('Error initializing translation service:', error);
+}
 
-export async function loadDictionary(): Promise<Dictionary> {
-  try {
-    // First check if we have a cached version
-    const cachedData = localStorage.getItem(CACHE_KEY);
-    
-    if (cachedData) {
-      const { timestamp, data } = JSON.parse(cachedData);
-      
-      // Check if cache is still valid
-      if (Date.now() - timestamp < CACHE_EXPIRY) {
-        console.log('Using cached dictionary');
-        return data;
-      }
-    }
-    
-    // If no cache or expired, fetch from source
-    // Using a dictionary of common English words
-    const response = await fetch('https://raw.githubusercontent.com/matthewreagan/WebstersEnglishDictionary/master/dictionary_compact.json');
-    
-    if (!response.ok) {
-      throw new Error(`Failed to load dictionary: ${response.status}`);
-    }
-    
-    const rawData = await response.json();
-    
-    // Extract a subset of common words to avoid processing the entire dictionary
-    const commonWords: Dictionary = {};
-    let count = 0;
-    
-    // Get first 1000 words
-    for (const word in rawData) {
-      if (count >= 1000) break;
-      if (word.length > 2 && word.length < 10) {
-        commonWords[word.toLowerCase()] = '';
-        count++;
-      }
-    }
-    
-    // Configure the translation service
-    translate.from = "en";
-    translate.to = "pt";
-    
-    // Save to cache with timestamp
-    localStorage.setItem(
-      CACHE_KEY, 
-      JSON.stringify({
-        timestamp: Date.now(),
-        data: commonWords
-      })
-    );
-    
-    return commonWords;
-  } catch (error) {
-    console.error('Error loading dictionary:', error);
-    toast.error("Could not load the dictionary. Some features might not work offline.");
-    
-    // Return empty dictionary in case of error
-    return {};
+let translating = false;
+
+// Function to get translation for a word
+export const translateWord = async (word: string): Promise<{ translation: string; isLoading: boolean }> => {
+  // Check if the word is in our common dictionary first
+  const lowerWord = word.toLowerCase();
+  if (commonWordsDictionary[lowerWord]) {
+    return { translation: commonWordsDictionary[lowerWord], isLoading: false };
   }
-}
-
-// Clean up a word by removing punctuation and converting to lowercase
-export function cleanWord(word: string): string {
-  return word.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '').toLowerCase();
-}
-
-// Translate a word using the translate package
-export async function translateWord(word: string): Promise<string> {
+  
+  // Try to get a translation from Google Translate
   try {
-    const cleaned = cleanWord(word);
-    const translation = await translate(cleaned, { from: 'en', to: 'pt' });
-    return translation || "Translation not found";
+    translating = true;
+    const options = { from: 'en', to: 'pt' };
+    const translation = await translate(word, options);
+    translating = false;
+    return { translation, isLoading: false };
   } catch (error) {
     console.error('Translation error:', error);
-    return "Translation service unavailable";
+    translating = false;
+    return { translation: "Translation not available", isLoading: false };
   }
-}
+};
 
-// Get translation for a word (used for cached translations)
-export function getTranslation(word: string, dictionary: Dictionary): string {
-  const cleaned = cleanWord(word);
-  return dictionary[cleaned] || "Translation not found";
-}
+// Export a function to check if translation is in progress
+export const isTranslating = () => translating;
