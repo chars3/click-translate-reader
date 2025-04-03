@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight, Settings } from "lucide-react";
-import { translateWord, cleanWord, type Dictionary } from '@/utils/dictionaryLoader';
+import { translateWord, isTranslating as isTranslatingWord, Dictionary } from '@/utils/dictionaryLoader';
 import WordTooltip from './WordTooltip';
 import LoadingScreen from './LoadingScreen';
 import type { BookInfo } from '@/types/book';
@@ -58,30 +58,38 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
           });
         }, 100);
         
+        console.log("Opening IndexedDB for epubLibraryDB");
         const request = indexedDB.open('epubLibraryDB', 1);
         
         request.onsuccess = async (event) => {
+          console.log("IndexedDB opened successfully");
           const db = (event.target as IDBOpenDBRequest).result;
           const transaction = db.transaction(['books'], 'readonly');
           const store = transaction.objectStore('books');
           const bookRequest = store.get(bookId);
           
           bookRequest.onsuccess = async () => {
+            console.log("Book request successful, fetched book:", bookRequest.result);
             if (bookRequest.result) {
               const bookData = bookRequest.result as BookInfo;
               setBookData(bookData);
               
               try {
+                console.log("Importing EPUB.js");
                 // Dynamically import the EPUB.js library
                 const epubModule = await import('epubjs');
+                console.log("EPUB.js imported:", epubModule);
                 const ePub = epubModule.default;
                 
                 // Create a blob URL from the file
+                console.log("Creating blob from file", bookData.file);
                 const bookBlob = new Blob([bookData.file], { type: 'application/epub+zip' });
                 const bookUrl = URL.createObjectURL(bookBlob);
                 
                 // Create the book
+                console.log("Creating EPUB book with URL:", bookUrl);
                 const epubBook = ePub(bookUrl);
+                console.log("EPUB book created:", epubBook);
                 setBook(epubBook);
                 
                 // Show loading progress
@@ -98,20 +106,23 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
                 onClose();
               }
             } else {
+              console.error("Book not found in database");
               toast.error('Book not found in database');
               onClose();
               clearInterval(loadingInterval);
             }
           };
           
-          bookRequest.onerror = () => {
+          bookRequest.onerror = (err) => {
+            console.error("Book request error:", err);
             toast.error('Failed to retrieve book from database');
             onClose();
             clearInterval(loadingInterval);
           };
         };
         
-        request.onerror = () => {
+        request.onerror = (err) => {
+          console.error("IndexedDB open error:", err);
           toast.error('Failed to open book database');
           onClose();
           clearInterval(loadingInterval);
@@ -128,7 +139,10 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
   
   // Initialize rendition once book is loaded
   useEffect(() => {
-    if (!book || !viewerRef.current || isLoading) return;
+    if (!book || !viewerRef.current || isLoading) {
+      console.log("Not ready to initialize renderer:", { book, viewerRef: !!viewerRef.current, isLoading });
+      return;
+    }
     
     const initializeRenderer = async () => {
       try {
@@ -142,36 +156,49 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
           flow: 'paginated'
         });
         
+        console.log("Rendition created:", bookRendition);
         setRendition(bookRendition);
         
         // Load saved position or start from beginning
         try {
           const savedCfi = localStorage.getItem(`book-position-${bookId}`);
+          console.log("Saved CFI:", savedCfi);
           if (savedCfi) {
             await bookRendition.display(savedCfi);
           } else {
             await bookRendition.display();
           }
+          console.log("Book displayed successfully");
         } catch (e) {
           console.error('Error displaying saved position:', e);
-          await bookRendition.display();
+          try {
+            await bookRendition.display();
+            console.log("Book displayed with default position");
+          } catch (err) {
+            console.error("Failed to display book with default position:", err);
+            toast.error("Failed to render book");
+          }
         }
         
         // Add event listeners for word selection
         bookRendition.on('selected', (cfiRange: string, contents: any) => {
+          console.log("Text selected:", cfiRange);
           const selection = contents.window.getSelection();
           const selectedText = selection.toString().trim();
           
           if (selectedText && selectedText.length > 0) {
+            console.log("Selected text:", selectedText);
             handleWordSelection(selectedText, selection);
           }
         });
         
         // Update progress when changing pages
         bookRendition.on('relocated', (location: any) => {
+          console.log("Page relocated:", location);
           if (book.locations && book.locations.percentageFromCfi) {
             const progress = book.locations.percentageFromCfi(location.start.cfi);
             const progressPercent = Math.floor(progress * 100);
+            console.log("Reading progress:", progressPercent);
             
             // Save position
             localStorage.setItem(`book-position-${bookId}`, location.start.cfi);
@@ -183,6 +210,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
         
         // Generate locations for better progress calculation
         if (book.locations && !book.locations.length()) {
+          console.log("Generating locations for progress tracking");
           book.locations.generate();
         }
       } catch (error) {
@@ -196,6 +224,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
     // Cleanup function
     return () => {
       if (book) {
+        console.log("Cleaning up book instance");
         book.destroy();
       }
     };
@@ -208,7 +237,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
       
-      const cleanedWord = cleanWord(text);
+      const cleanedWord = text.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
       
       if (cleanedWord === selectedWord && showTooltip) {
         setShowTooltip(false);
@@ -231,6 +260,7 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
       setTranslation("Translating...");
       
       translateWord(text).then((result) => {
+        console.log("Translation result:", result);
         setTranslation(result);
         setIsTranslating(false);
       }).catch((error) => {
