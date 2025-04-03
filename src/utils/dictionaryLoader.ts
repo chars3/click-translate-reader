@@ -49,7 +49,8 @@ export async function loadDictionary(): Promise<Dictionary> {
     }
     
     // Configure the translation service
-    translate.engine = "google"; // Default to Google as it doesn't require a key
+    translate.from = "en";
+    translate.to = "pt";
     
     // Save to cache with timestamp
     localStorage.setItem(
@@ -79,7 +80,7 @@ export function cleanWord(word: string): string {
 export async function translateWord(word: string): Promise<string> {
   try {
     const cleaned = cleanWord(word);
-    const translation = await translate(cleaned, { to: 'pt' });
+    const translation = await translate(cleaned, { from: 'en', to: 'pt' });
     return translation || "Translation not found";
   } catch (error) {
     console.error('Translation error:', error);
