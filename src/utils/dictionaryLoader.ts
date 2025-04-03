@@ -1,3 +1,4 @@
+
 import translate from 'translate';
 
 // Define the Dictionary type

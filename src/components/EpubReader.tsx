@@ -71,27 +71,36 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
               const bookData = bookRequest.result as BookInfo;
               setBookData(bookData);
               
-              // Load the EPUB.js library dynamically
-              const ePub = (await import('epubjs')).default;
-              
-              // Create a blob URL from the file
-              const bookBlob = new Blob([bookData.file], { type: 'application/epub+zip' });
-              const bookUrl = URL.createObjectURL(bookBlob);
-              
-              // Create the book
-              const epubBook = ePub(bookUrl);
-              setBook(epubBook);
-              
-              // Show loading progress
-              clearInterval(loadingInterval);
-              setLoadingProgress(100);
-              
-              setTimeout(() => {
-                setIsLoading(false);
-              }, 300);
+              try {
+                // Dynamically import the EPUB.js library
+                const epubModule = await import('epubjs');
+                const ePub = epubModule.default;
+                
+                // Create a blob URL from the file
+                const bookBlob = new Blob([bookData.file], { type: 'application/epub+zip' });
+                const bookUrl = URL.createObjectURL(bookBlob);
+                
+                // Create the book
+                const epubBook = ePub(bookUrl);
+                setBook(epubBook);
+                
+                // Show loading progress
+                clearInterval(loadingInterval);
+                setLoadingProgress(100);
+                
+                setTimeout(() => {
+                  setIsLoading(false);
+                }, 300);
+              } catch (err) {
+                console.error('Error loading EPUB.js or creating book:', err);
+                toast.error('Failed to load book reader');
+                clearInterval(loadingInterval);
+                onClose();
+              }
             } else {
               toast.error('Book not found in database');
               onClose();
+              clearInterval(loadingInterval);
             }
           };
           
@@ -123,6 +132,8 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
     
     const initializeRenderer = async () => {
       try {
+        console.log('Initializing renderer with book:', book);
+        
         // Create rendition
         const bookRendition = book.renderTo(viewerRef.current, {
           width: '100%',
@@ -137,13 +148,13 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
         try {
           const savedCfi = localStorage.getItem(`book-position-${bookId}`);
           if (savedCfi) {
-            bookRendition.display(savedCfi);
+            await bookRendition.display(savedCfi);
           } else {
-            bookRendition.display();
+            await bookRendition.display();
           }
         } catch (e) {
           console.error('Error displaying saved position:', e);
-          bookRendition.display();
+          await bookRendition.display();
         }
         
         // Add event listeners for word selection
@@ -158,18 +169,20 @@ const EpubReader: React.FC<EpubReaderProps> = ({ bookId, onClose }) => {
         
         // Update progress when changing pages
         bookRendition.on('relocated', (location: any) => {
-          const progress = book.locations.percentageFromCfi(location.start.cfi);
-          const progressPercent = Math.floor(progress * 100);
-          
-          // Save position
-          localStorage.setItem(`book-position-${bookId}`, location.start.cfi);
-          
-          // Update progress in IndexedDB
-          updateReadingProgress(progressPercent);
+          if (book.locations && book.locations.percentageFromCfi) {
+            const progress = book.locations.percentageFromCfi(location.start.cfi);
+            const progressPercent = Math.floor(progress * 100);
+            
+            // Save position
+            localStorage.setItem(`book-position-${bookId}`, location.start.cfi);
+            
+            // Update progress in IndexedDB
+            updateReadingProgress(progressPercent);
+          }
         });
         
         // Generate locations for better progress calculation
-        if (!book.locations.length()) {
+        if (book.locations && !book.locations.length()) {
           book.locations.generate();
         }
       } catch (error) {
